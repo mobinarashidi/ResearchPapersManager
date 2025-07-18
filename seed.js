@@ -1,9 +1,8 @@
 const mongoose = require('mongoose');
 const { faker } = require('@faker-js/faker');
-const bcrypt = require('bcryptjs');
-const User = require('./src/models/user.js');
-const Paper = require('./src/models/paper.js');
-const Citation = require('./src/models/citation.js');
+const User = require('./src/models/user');
+const Paper = require('./src/models/paper');
+const Citation = require('./src/models/citation');
 const redisClient = require('./src/config/redis');
 require('dotenv').config();
 
@@ -22,22 +21,23 @@ const seedDatabase = async () => {
         console.log('Cleared existing data.');
 
 
-        const users = [];
+        const userPromises = [];
         const usernames = new Set();
         for (let i = 0; i < 100; i++) {
             const username = faker.internet.userName().toLowerCase().replace(/[^a-z0-9_]/g, '').substring(0, 20);
-            if (usernames.has(username)) continue;
+            if (usernames.has(username)) continue; // Ensure username is unique
             usernames.add(username);
 
-            users.push({
+            const user = new User({
                 username,
                 name: faker.person.fullName(),
                 email: faker.internet.email(),
-                password: 'password123',
+                password: faker.internet.password({ length: faker.number.int({ min: 8, max: 12 }) }),
                 department: faker.commerce.department()
             });
+            userPromises.push(user.save());
         }
-        const createdUsers = await User.insertMany(users);
+        const createdUsers = await Promise.all(userPromises);
         console.log(`${createdUsers.length} users created.`);
 
 
