@@ -1,11 +1,9 @@
-// src/controllers/paper.controller.js
 const Paper = require('../models/paper.js');
 const Citation = require('../models/citation.js');
 const User = require('../models/user.js');
 const redisClient = require('../config/redis');
 const mongoose = require('mongoose');
 
-// Middleware to check for a valid user ID in the header
 exports.authMiddleware = async (req, res, next) => {
     const userId = req.header('X-User-ID');
     if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
@@ -28,12 +26,10 @@ exports.uploadPaper = async (req, res) => {
     try {
         const { title, authors, abstract, publication_date, journal_conference, keywords, citations } = req.body;
 
-        // Basic validation
         if (!title || !authors || !abstract || !publication_date || !keywords) {
             return res.status(400).json({ message: 'Missing required fields.' });
         }
 
-        // Validate citations if provided
         if (citations && citations.length > 0) {
             for (const citId of citations) {
                 if (!mongoose.Types.ObjectId.isValid(citId)) {
@@ -72,16 +68,18 @@ exports.searchPapers = async (req, res) => {
     try {
         const { search = '', sort_by = 'relevance', order = 'desc' } = req.query;
 
-        // Create a unique key for Redis cache
-        const cacheKey = `search:${search}:${sort_by}:${order}`;
+        const keyParts = ['search', search || 'all', sort_by, order];
+        const cacheKey = keyParts.join(':');
+        console.log(`[DEBUG] Using cache key: ${cacheKey}`);
 
-        // 1. Check cache first
         const cachedResults = await redisClient.get(cacheKey);
         if (cachedResults) {
+            console.log('[DEBUG] Cache HIT!');
             return res.status(200).json(JSON.parse(cachedResults));
         }
 
-        // 2. If not in cache, query MongoDB
+        console.log('[DEBUG] Cache MISS. Querying MongoDB...');
+
         let query = {};
         if (search) {
             query = { $text: { $search: search } };
@@ -97,21 +95,31 @@ exports.searchPapers = async (req, res) => {
         const papers = await Paper.find(query)
             .sort(sortOption)
             .select('title authors publication_date journal_conference keywords')
-            .lean(); // .lean() for faster queries, returns plain JS objects
+            .lean();
 
         const response = { papers };
 
-        // 3. Store result in Redis cache for 5 minutes (300 seconds)
-        await redisClient.setex(cacheKey, 300, JSON.stringify(response));
+        if (papers.length > 0) {
+            console.log(`[DEBUG] Storing result in Redis. Key: ${cacheKey}`);
+            try {
+                await redisClient.setex(cacheKey, 300, JSON.stringify(response));
+                console.log('[DEBUG] Successfully stored in Redis.');
+            } catch (redisError) {
+                console.error('[DEBUG] FAILED to store in Redis:', redisError);
+            }
+        } else {
+            console.log('[DEBUG] No results to store in cache.');
+        }
 
         res.status(200).json(response);
 
     } catch (error) {
+        console.error('[DEBUG] An error occurred in searchPapers:', error);
         res.status(400).json({ message: 'Invalid query parameters', error: error.message });
     }
 };
 
-// GET /papers/{paper_id}
+// GET /papers/{ID}
 exports.getPaperDetails = async (req, res) => {
     try {
         const { paper_id } = req.params;
@@ -119,27 +127,52 @@ exports.getPaperDetails = async (req, res) => {
             return res.status(404).json({ message: 'Paper not found.' });
         }
 
-        // Atomically increment view count in Redis
-        const viewCount = await redisClient.incr(`paper_views:${paper_id}`);
+        const paperCacheKey = `paper_details:${paper_id}`;
+        console.log(`[DEBUG] Using paper cache key: ${paperCacheKey}`);
 
-        // Get paper details from MongoDB
-        const paper = await Paper.findById(paper_id).lean();
-        if (!paper) {
-            return res.status(404).json({ message: 'Paper not found.' });
+        let cachedPaper = await redisClient.get(paperCacheKey);
+        let paper, citationCount;
+
+        if (cachedPaper) {
+            console.log('[DEBUG] Paper cache HIT!');
+            const cachedData = JSON.parse(cachedPaper);
+            paper = cachedData.paper;
+            citationCount = cachedData.citation_count;
+        } else {
+            console.log('[DEBUG] Paper cache MISS. Querying MongoDB...');
+
+            paper = await Paper.findById(paper_id).lean();
+            if (!paper) {
+                return res.status(404).json({ message: 'Paper not found.' });
+            }
+
+            citationCount = await Citation.countDocuments({ cited_paper_id: paper_id });
+
+            const cacheData = {
+                paper: paper,
+                citation_count: citationCount
+            };
+
+            try {
+                await redisClient.setex(paperCacheKey, 600, JSON.stringify(cacheData));
+                console.log(`[DEBUG] Successfully stored paper data in Redis. Key: ${paperCacheKey}`);
+            } catch (redisError) {
+                console.error('[DEBUG] FAILED to store paper data in Redis:', redisError);
+            }
         }
 
-        // Get citation count from MongoDB
-        const citationCount = await Citation.countDocuments({ cited_paper_id: paper_id });
+        const viewCount = await redisClient.incr(`paper_views:${paper_id}`);
 
         const response = {
             ...paper,
             citation_count: citationCount,
-            views: viewCount // Return the real-time view count from Redis
+            views: viewCount
         };
 
         res.status(200).json(response);
 
     } catch (error) {
+        console.error('[DEBUG] An error occurred in getPaperDetails:', error);
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 };

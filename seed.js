@@ -25,7 +25,7 @@ const seedDatabase = async () => {
         const usernames = new Set();
         for (let i = 0; i < 100; i++) {
             const username = faker.internet.userName().toLowerCase().replace(/[^a-z0-9_]/g, '').substring(0, 20);
-            if (usernames.has(username)) continue; // Ensure username is unique
+            if (usernames.has(username)) continue;
             usernames.add(username);
 
             const user = new User({

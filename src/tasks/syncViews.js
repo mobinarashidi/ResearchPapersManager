@@ -1,10 +1,8 @@
-// src/tasks/syncViews.js
 const cron = require('node-cron');
 const redisClient = require('../config/redis');
 const Paper = require('../models/paper.js');
 
 const syncViewsTask = () => {
-    // Schedule to run every 10 minutes
     cron.schedule('*/10 * * * *', async () => {
         console.log('Running scheduled task: Syncing paper views from Redis to MongoDB...');
         try {
@@ -37,7 +35,7 @@ const syncViewsTask = () => {
             if (bulkOps.length > 0) {
                 await Paper.bulkWrite(bulkOps);
                 console.log(`Synced ${bulkOps.length} paper view counts.`);
-                // Reset the keys in Redis after successful sync
+
                 await redisClient.del(keys);
                 console.log('Cleared synced view keys from Redis.');
             } else {
