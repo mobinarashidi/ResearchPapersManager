@@ -127,52 +127,47 @@ exports.getPaperDetails = async (req, res) => {
             return res.status(404).json({ message: 'Paper not found.' });
         }
 
-        const paperCacheKey = `paper_details:${paper_id}`;
-        console.log(`[DEBUG] Using paper cache key: ${paperCacheKey}`);
+        const viewCount = await redisClient.incr(`paper_views:${paper_id}`);
 
-        let cachedPaper = await redisClient.get(paperCacheKey);
-        let paper, citationCount;
+        const results = await Paper.aggregate([
 
-        if (cachedPaper) {
-            console.log('[DEBUG] Paper cache HIT!');
-            const cachedData = JSON.parse(cachedPaper);
-            paper = cachedData.paper;
-            citationCount = cachedData.citation_count;
-        } else {
-            console.log('[DEBUG] Paper cache MISS. Querying MongoDB...');
-
-            paper = await Paper.findById(paper_id).lean();
-            if (!paper) {
-                return res.status(404).json({ message: 'Paper not found.' });
+            {
+                $match: { _id: new mongoose.Types.ObjectId(paper_id) }
+            },
+            {
+                $lookup: {
+                    from: 'citations',
+                    localField: '_id',
+                    foreignField: 'cited_paper_id',
+                    as: 'citationsData'
+                }
+            },
+            {
+                $addFields: {
+                    citation_count: { $size: '$citationsData' }
+                }
+            },
+            {
+                $project: {
+                    citationsData: 0
+                }
             }
+        ]);
 
-            citationCount = await Citation.countDocuments({ cited_paper_id: paper_id });
-
-            const cacheData = {
-                paper: paper,
-                citation_count: citationCount
-            };
-
-            try {
-                await redisClient.setex(paperCacheKey, 600, JSON.stringify(cacheData));
-                console.log(`[DEBUG] Successfully stored paper data in Redis. Key: ${paperCacheKey}`);
-            } catch (redisError) {
-                console.error('[DEBUG] FAILED to store paper data in Redis:', redisError);
-            }
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'Paper not found.' });
         }
 
-        const viewCount = await redisClient.incr(`paper_views:${paper_id}`);
+        const paper = results[0];
 
         const response = {
             ...paper,
-            citation_count: citationCount,
             views: viewCount
         };
 
         res.status(200).json(response);
 
     } catch (error) {
-        console.error('[DEBUG] An error occurred in getPaperDetails:', error);
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 };
