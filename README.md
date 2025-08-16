@@ -4,7 +4,7 @@ A research paper management system built with Javascript , MongoDB and Redis for
 
 ---
 
-## 🚀 Tech Stack
+##  Tech Stack
 
 | Layer         | Technologies                        |
 |---------------|-------------------------------------|
@@ -17,12 +17,12 @@ A research paper management system built with Javascript , MongoDB and Redis for
 
 ---
 
-## 🔐 Authentication Endpoints
+##  Authentication Endpoints
 
 ### 📝 Signup
 
 - **Method:** `POST`  
-- **Endpoint:** `/signup`  
+- **Endpoint:** `http://localhost:3000/api/users/signup`  
 - **Body:**
   ```json
   {
@@ -49,7 +49,7 @@ A research paper management system built with Javascript , MongoDB and Redis for
 ### 🔑 Login
 
 - **Method:** `POST`  
-- **Endpoint:** `/login`  
+- **Endpoint:** `http://localhost:3000/api/users/login`  
 - **Body:**
   ```json
   {
@@ -67,12 +67,12 @@ A research paper management system built with Javascript , MongoDB and Redis for
 
 ---
 
-## 📄 Paper Management
+##  Paper Management
 
 ### ⬆️ Upload Paper
 
 - **Method:** `POST`  
-- **Endpoint:** `/papers`  
+- **Endpoint:** `http://localhost:3000/api/papers`  
 - **Headers:**
   ```json
   {
@@ -104,10 +104,10 @@ A research paper management system built with Javascript , MongoDB and Redis for
 ### 🔍 Search Papers
 
 - **Method:** `GET`  
-- **Endpoint:** `/papers`  
+- **Endpoint:** `http://localhost:3000/api/papers?search=cubo&sort_by=publication_date&order=desc`  
 - **Query Parameters:**
   ```
-  ?search=deep learning
+  ?search={one of the keywords}
   &sort_by=publication_date | relevance
   &order=asc | desc
   ```
@@ -135,7 +135,7 @@ A research paper management system built with Javascript , MongoDB and Redis for
 ### 📑 Paper Details
 
 - **Method:** `GET`  
-- **Endpoint:** `/papers/{paper_id}`  
+- **Endpoint:** `http://localhost:3000/api/papers/{paper_id}`  
 - **Response:**
   ```json
   {
@@ -156,7 +156,7 @@ A research paper management system built with Javascript , MongoDB and Redis for
 
 ---
 
-## 🧠 Redis Keys
+##  Redis Keys
 
 | Purpose                  | Sample Key                            | Operations           |
 |--------------------------|----------------------------------------|----------------------|
@@ -166,7 +166,7 @@ A research paper management system built with Javascript , MongoDB and Redis for
 
 ---
 
-## 🧪 Data Seeder
+##  Data Seeder
 
 - Generates 100 users with unique usernames and hashed passwords  
 - Generates 1000 papers with randomized metadata  
